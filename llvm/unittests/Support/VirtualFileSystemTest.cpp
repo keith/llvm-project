@@ -1627,6 +1627,26 @@ TEST_F(VFSFromYAMLTest, RemappedDirectoryOverlayNoFallthrough) {
   EXPECT_EQ(0, NumDiagnostics);
 }
 
+TEST_F(VFSFromYAMLTest, RelativePathFallthrough) {
+  IntrusiveRefCntPtr<vfs::InMemoryFileSystem> BaseFS =
+      new vfs::InMemoryFileSystem;
+  BaseFS->addFile("//root/foo/a", 0, MemoryBuffer::getMemBuffer("contents of a"));
+  ASSERT_FALSE(BaseFS->setCurrentWorkingDirectory("//root/foo"));
+  auto RemappedFS = vfs::RedirectingFileSystem::create(
+      {}, /*UseExternalNames=*/false, *BaseFS);
+
+  auto OpenedF = RemappedFS->openFileForRead("a");
+  ASSERT_FALSE(OpenedF.getError());
+  llvm::ErrorOr<std::string> Name = (*OpenedF)->getName();
+  ASSERT_FALSE(Name.getError());
+  auto OpenedS = (*OpenedF)->status();
+  ASSERT_FALSE(OpenedS.getError());
+  EXPECT_EQ("a", Name.get());
+  EXPECT_EQ("a", OpenedS->getName());
+  EXPECT_FALSE(OpenedS->IsVFSMapped);
+  EXPECT_EQ(0, NumDiagnostics);
+}
+
 TEST_F(VFSFromYAMLTest, CaseInsensitive) {
   IntrusiveRefCntPtr<DummyFileSystem> Lower(new DummyFileSystem());
   Lower->addRegularFile("//root/foo/bar/a");
