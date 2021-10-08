@@ -121,6 +121,15 @@ public:
 
   /// Closes the file.
   virtual std::error_code close() = 0;
+
+  // Get the same file wrapped with a different reported path.
+  static std::unique_ptr<File> getWithPath(std::unique_ptr<File> F,
+                                           const Twine &P);
+
+protected:
+  // API for mutating the path. Override to avoid needing a wrapper
+  // object for File::getWithPath.
+  virtual bool setPath(const Twine &Path) { return false; }
 };
 
 /// A member of a directory, yielded by a directory_iterator.
