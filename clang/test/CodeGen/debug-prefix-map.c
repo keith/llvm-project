@@ -19,23 +19,21 @@ void test_rewrite_includes() {
   vprintf("string", argp);
 }
 
-// CHECK-NO-MAIN-FILE-NAME: !DIFile(filename: "{{/|C:\\\\|()}}UNLIKELY_PATH{{/|\\\\}}empty{{/|\\\\}}<stdin>"
-// CHECK-NO-MAIN-FILE-NAME: !DIFile(filename: "{{/|C:\\\\|()}}UNLIKELY_PATH{{/|\\\\}}empty{{/|\\\\}}{{.*}}",
-// On POSIX systems "Dir" should actually be empty, but on Windows we
-// can't recognize "/UNLIKELY_PATH" as being an absolute path.
-// CHECK-NO-MAIN-FILE-NAME-SAME:    directory: "{{()|(.*:.*)}}")
-// CHECK-NO-MAIN-FILE-NAME: !DIFile(filename: "{{/|C:\\\\|()}}UNLIKELY_PATH{{/|\\\\}}empty{{/|\\\\}}Inputs{{/|\\\\}}stdio.h",
-// CHECK-NO-MAIN-FILE-NAME-SAME:    directory: "{{()|(.*:.*)}}")
+// CHECK-NO-MAIN-FILE-NAME: !DIFile(filename: "{{/|C:\\\\}}UNLIKELY_PATH{{/|\\\\}}empty{{/|\\\\}}<stdin>"
+// CHECK-NO-MAIN-FILE-NAME: !DIFile(filename: "{{/|C:\\\\}}UNLIKELY_PATH{{/|\\\\}}empty{{/|\\\\}}{{.*}}",
+// CHECK-NO-MAIN-FILE-NAME-SAME:    directory: "")
+// CHECK-NO-MAIN-FILE-NAME: !DIFile(filename: "{{/|C:\\\\}}UNLIKELY_PATH{{/|\\\\}}empty{{/|\\\\}}Inputs{{/|\\\\}}stdio.h",
+// CHECK-NO-MAIN-FILE-NAME-SAME:    directory: "")
 // CHECK-NO-MAIN-FILE-NAME-NOT: !DIFile(filename:
 
-// CHECK-EVIL: !DIFile(filename: "{{/|C:\\\\|()}}UNLIKELY_PATH=empty{{/|\\\\}}{{.*}}"
-// CHECK-EVIL: !DIFile(filename: "{{/|C:\\\\|()}}UNLIKELY_PATH=empty{{/|\\\\}}{{.*}}Inputs{{/|\\\\}}stdio.h",
-// CHECK-EVIL-SAME:    directory: "{{()|(.*:.*)}}")
+// CHECK-EVIL: !DIFile(filename: "{{/|C:\\\\}}UNLIKELY_PATH=empty{{/|\\\\}}{{.*}}"
+// CHECK-EVIL: !DIFile(filename: "{{/|C:\\\\}}UNLIKELY_PATH=empty{{/|\\\\}}{{.*}}Inputs{{/|\\\\}}stdio.h",
+// CHECK-EVIL-SAME:    directory: "")
 // CHECK-EVIL-NOT: !DIFile(filename:
 
-// CHECK: !DIFile(filename: "{{/|C:\\\\|()}}UNLIKELY_PATH{{/|\\\\}}empty{{/|\\\\}}{{.*}}"
-// CHECK: !DIFile(filename: "{{/|C:\\\\|()}}UNLIKELY_PATH{{/|\\\\}}empty{{/|\\\\}}{{.*}}Inputs{{/|\\\\}}stdio.h",
-// CHECK-SAME:    directory: "{{()|(.*:.*)}}")
+// CHECK: !DIFile(filename: "{{/|C:\\\\}}UNLIKELY_PATH{{/|\\\\}}empty{{/|\\\\}}{{.*}}"
+// CHECK: !DIFile(filename: "{{/|C:\\\\}}UNLIKELY_PATH{{/|\\\\}}empty{{/|\\\\}}{{.*}}Inputs{{/|\\\\}}stdio.h",
+// CHECK-SAME:    directory: "")
 // CHECK-NOT: !DIFile(filename:
 
 // CHECK-COMPILATION-DIR: !DIFile(filename: "{{.*}}", directory: "{{/|C:\\\\}}UNLIKELY_PATH{{/|\\\\}}empty")
