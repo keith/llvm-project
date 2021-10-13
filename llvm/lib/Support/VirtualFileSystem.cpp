@@ -194,6 +194,7 @@ public:
                                                    bool RequiresNullTerminator,
                                                    bool IsVolatile) override;
   std::error_code close() override;
+  bool setPath(const Twine &Path) override;
 };
 
 } // namespace
@@ -227,6 +228,13 @@ std::error_code RealFile::close() {
   std::error_code EC = sys::fs::closeFile(FD);
   FD = kInvalidFile;
   return EC;
+}
+
+bool RealFile::setPath(const Twine &Path) {
+  RealName = Path.str();
+  if (auto Status = status())
+    S = Status.get().copyWithNewName(Status.get(), Path);
+  return true;
 }
 
 namespace {
@@ -639,6 +647,11 @@ public:
   }
 
   std::error_code close() override { return {}; }
+
+  bool setPath(const Twine &Path) override {
+    RequestedName = Path.str();
+    return true;
+  }
 };
 } // namespace
 
@@ -1178,17 +1191,15 @@ RedirectingFileSystem::setCurrentWorkingDirectory(const Twine &Path) {
   return {};
 }
 
-std::error_code RedirectingFileSystem::isLocal(const Twine &Path,
+std::error_code RedirectingFileSystem::isLocal(const Twine &Path_,
                                                bool &Result) {
-  if (!ExternalFS->isLocal(Path, Result))
+  SmallString<256> Path;
+  Path_.toVector(Path);
+
+  if (std::error_code EC = makeCanonical(Path))
     return {};
 
-  SmallString<256> CanonicalPath;
-  Path.toVector(CanonicalPath);
-  if (std::error_code EC = makeCanonical(CanonicalPath))
-    return {};
-
-  return ExternalFS->isLocal(CanonicalPath, Result);
+  return ExternalFS->isLocal(Path, Result);
 }
 
 std::error_code RedirectingFileSystem::makeAbsolute(SmallVectorImpl<char> &Path) const {
@@ -1222,28 +1233,23 @@ std::error_code RedirectingFileSystem::makeAbsolute(SmallVectorImpl<char> &Path)
 
 directory_iterator RedirectingFileSystem::dir_begin(const Twine &Dir,
                                                     std::error_code &EC) {
-  SmallString<256> CanonicalPath;
-  Dir.toVector(CanonicalPath);
+  SmallString<256> Path;
+  Dir.toVector(Path);
 
-  EC = makeCanonical(CanonicalPath);
+  EC = makeCanonical(Path);
   if (EC)
     return {};
 
-  ErrorOr<RedirectingFileSystem::LookupResult> Result = lookupPath(CanonicalPath);
+  ErrorOr<RedirectingFileSystem::LookupResult> Result = lookupPath(Path);
   if (!Result) {
     EC = Result.getError();
-    if (shouldFallBackToExternalFS(EC)) {
-      directory_iterator Result = ExternalFS->dir_begin(Dir, EC);
-      if (!EC)
-        return Result;
-
-      return ExternalFS->dir_begin(CanonicalPath, EC);
-    }
+    if (shouldFallBackToExternalFS(EC))
+      return ExternalFS->dir_begin(Path, EC);
     return {};
   }
 
   // Use status to make sure the path exists and refers to a directory.
-  ErrorOr<Status> S = status(CanonicalPath, *Result);
+  ErrorOr<Status> S = status(Path, *Result);
   if (!S) {
     if (shouldFallBackToExternalFS(S.getError(), Result->E))
       return ExternalFS->dir_begin(Dir, EC);
@@ -1267,18 +1273,18 @@ directory_iterator RedirectingFileSystem::dir_begin(const Twine &Dir,
       // Update the paths in the results to use the virtual directory's path.
       DirIter =
           directory_iterator(std::make_shared<RedirectingFSDirRemapIterImpl>(
-              std::string(CanonicalPath), DirIter));
+              std::string(Path), DirIter));
     }
   } else {
     auto DE = cast<DirectoryEntry>(Result->E);
     DirIter = directory_iterator(std::make_shared<RedirectingFSDirIterImpl>(
-        CanonicalPath, DE->contents_begin(), DE->contents_end(), EC));
+        Path, DE->contents_begin(), DE->contents_end(), EC));
   }
 
   if (!shouldUseExternalFS())
     return DirIter;
   return directory_iterator(std::make_shared<CombiningDirIterImpl>(
-      DirIter, ExternalFS, std::string(CanonicalPath), EC));
+      DirIter, ExternalFS, std::string(Path), EC));
 }
 
 void RedirectingFileSystem::setExternalContentsPrefixDir(StringRef PrefixDir) {
@@ -1993,33 +1999,33 @@ ErrorOr<Status> RedirectingFileSystem::status(
   return Status::copyWithNewName(DE->getStatus(), Path);
 }
 
-ErrorOr<Status> RedirectingFileSystem::status(const Twine &Path) {
-  SmallString<256> CanonicalPath;
-  Path.toVector(CanonicalPath);
+ErrorOr<Status> RedirectingFileSystem::status(const Twine &Path_) {
+  SmallString<256> Path;
+  Path_.toVector(Path);
 
-  if (std::error_code EC = makeCanonical(CanonicalPath))
+  if (std::error_code EC = makeCanonical(Path))
     return EC;
 
-  ErrorOr<RedirectingFileSystem::LookupResult> Result = lookupPath(CanonicalPath);
+  ErrorOr<RedirectingFileSystem::LookupResult> Result = lookupPath(Path);
   if (!Result) {
     if (shouldFallBackToExternalFS(Result.getError())) {
-      auto Result = ExternalFS->status(Path);
-      if (!Result.getError())
-        return Result;
-
-      return ExternalFS->status(CanonicalPath);
+      if (auto Result = ExternalFS->status(Path)) {
+        Status S = Result.get();
+        return S.copyWithNewName(S, Path_);
+      } else {
+        return Result.getError();
+      }
     }
     return Result.getError();
   }
 
-  ErrorOr<Status> S = status(CanonicalPath, *Result);
+  ErrorOr<Status> S = status(Path, *Result);
   if (!S && shouldFallBackToExternalFS(S.getError(), Result->E)) {
-    auto Result = ExternalFS->status(Path);
-    if (!Result.getError())
-      return Result;
-
-    S = ExternalFS->status(CanonicalPath);
+    S = ExternalFS->status(Path);
+    if (S)
+      S = S.get().copyWithNewName(S.get(), Path_);
   }
+
   return S;
 }
 
@@ -2044,27 +2050,39 @@ public:
   }
 
   std::error_code close() override { return InnerFile->close(); }
+
+  bool setPath(const Twine &Path) override {
+    S = S.copyWithNewName(S, Path);
+    return true;
+  }
 };
 
 } // namespace
 
+std::unique_ptr<File> File::getWithPath(std::unique_ptr<File> F, const Twine &P) {
+  if (F->setPath(P))
+    return F;
+  return F;
+}
+
 ErrorOr<std::unique_ptr<File>>
-RedirectingFileSystem::openFileForRead(const Twine &Path) {
+RedirectingFileSystem::openFileForRead(const Twine &OriginalPath) {
   SmallString<256> CanonicalPath;
-  Path.toVector(CanonicalPath);
+  OriginalPath.toVector(CanonicalPath);
 
   if (std::error_code EC = makeCanonical(CanonicalPath))
     return EC;
 
-  ErrorOr<RedirectingFileSystem::LookupResult> Result = lookupPath(CanonicalPath);
+  ErrorOr<RedirectingFileSystem::LookupResult> Result =
+      lookupPath(CanonicalPath);
   if (!Result) {
-    if (shouldFallBackToExternalFS(Result.getError())) {
-      auto Result = ExternalFS->openFileForRead(Path);
-      if (!Result.getError())
-        return Result;
+    if (shouldFallBackToExternalFS(Result.getError()))
+      if (auto Result = ExternalFS->openFileForRead(CanonicalPath))
+        // FIXME: only do if path differs?
+        return CanonicalPath.equals((*Result)->getName().get()) && !CanonicalPath.equals(OriginalPath.str())
+          ? File::getWithPath(std::move(*Result), OriginalPath)
+          : std::move(*Result);
 
-      return ExternalFS->openFileForRead(CanonicalPath);
-    }
     return Result.getError();
   }
 
@@ -2076,13 +2094,12 @@ RedirectingFileSystem::openFileForRead(const Twine &Path) {
 
   auto ExternalFile = ExternalFS->openFileForRead(ExtRedirect);
   if (!ExternalFile) {
-    if (shouldFallBackToExternalFS(ExternalFile.getError(), Result->E)) {
-      auto Result = ExternalFS->openFileForRead(Path);
-      if (!Result.getError())
-        return Result;
-
-      return ExternalFS->openFileForRead(CanonicalPath);
-    }
+    if (shouldFallBackToExternalFS(ExternalFile.getError(), Result->E))
+      if (auto Result = ExternalFS->openFileForRead(CanonicalPath))
+        // FIXME: only do if path differs?
+        return CanonicalPath.equals((*Result)->getName().get()) && !CanonicalPath.equals(OriginalPath.str())
+          ? File::getWithPath(std::move(*Result), OriginalPath)
+          : std::move(*Result);
     return ExternalFile;
   }
 
@@ -2093,27 +2110,24 @@ RedirectingFileSystem::openFileForRead(const Twine &Path) {
   // FIXME: Update the status with the name and VFSMapped.
   Status S = getRedirectedFileStatus(
       CanonicalPath, RE->useExternalName(UseExternalNames), *ExternalStatus);
+  // FIXME: this one needs the orig path?
   return std::unique_ptr<File>(
       std::make_unique<FileWithFixedStatus>(std::move(*ExternalFile), S));
 }
 
 std::error_code
-RedirectingFileSystem::getRealPath(const Twine &Path,
+RedirectingFileSystem::getRealPath(const Twine &Path_,
                                    SmallVectorImpl<char> &Output) const {
-  SmallString<256> CanonicalPath;
-  Path.toVector(CanonicalPath);
+  SmallString<256> Path;
+  Path_.toVector(Path);
 
-  if (std::error_code EC = makeCanonical(CanonicalPath))
+  if (std::error_code EC = makeCanonical(Path))
     return EC;
 
-  ErrorOr<RedirectingFileSystem::LookupResult> Result = lookupPath(CanonicalPath);
+  ErrorOr<RedirectingFileSystem::LookupResult> Result = lookupPath(Path);
   if (!Result) {
-    if (shouldFallBackToExternalFS(Result.getError())) {
-      if (!ExternalFS->getRealPath(Path, Output))
-          return {};
-
-      return ExternalFS->getRealPath(CanonicalPath, Output);
-    }
+    if (shouldFallBackToExternalFS(Result.getError()))
+      return ExternalFS->getRealPath(Path, Output);
     return Result.getError();
   }
 
@@ -2122,23 +2136,15 @@ RedirectingFileSystem::getRealPath(const Twine &Path,
   if (auto ExtRedirect = Result->getExternalRedirect()) {
     auto P = ExternalFS->getRealPath(*ExtRedirect, Output);
     if (!P && shouldFallBackToExternalFS(P, Result->E)) {
-      if (!ExternalFS->getRealPath(Path, Output))
-          return {};
-
-      return ExternalFS->getRealPath(CanonicalPath, Output);
+      return ExternalFS->getRealPath(Path, Output);
     }
     return P;
   }
 
   // If we found a DirectoryEntry, still fall back to ExternalFS if allowed,
   // because directories don't have a single external contents path.
-  if (shouldUseExternalFS()) {
-    if (!ExternalFS->getRealPath(Path, Output))
-      return {};
-    return ExternalFS->getRealPath(CanonicalPath, Output);
-  }
-
-  return llvm::errc::invalid_argument;
+  return shouldUseExternalFS() ? ExternalFS->getRealPath(Path, Output)
+                               : llvm::errc::invalid_argument;
 }
 
 std::unique_ptr<FileSystem>
