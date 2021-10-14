@@ -1628,8 +1628,10 @@ TEST_F(VFSFromYAMLTest, RemappedDirectoryOverlayNoFallthrough) {
 }
 
 TEST_F(VFSFromYAMLTest, ReturnsRequestedPathVFSMiss) {
-  IntrusiveRefCntPtr<vfs::InMemoryFileSystem> BaseFS(new vfs::InMemoryFileSystem);
-  BaseFS->addFile("//root/foo/a", 0, MemoryBuffer::getMemBuffer("contents of a"));
+  IntrusiveRefCntPtr<vfs::InMemoryFileSystem> BaseFS(
+      new vfs::InMemoryFileSystem);
+  BaseFS->addFile("//root/foo/a", 0,
+                  MemoryBuffer::getMemBuffer("contents of a"));
   ASSERT_FALSE(BaseFS->setCurrentWorkingDirectory("//root/foo"));
   auto RemappedFS = vfs::RedirectingFileSystem::create(
       {}, /*UseExternalNames=*/false, *BaseFS);
@@ -1654,22 +1656,24 @@ TEST_F(VFSFromYAMLTest, ReturnsRequestedPathVFSMiss) {
 }
 
 TEST_F(VFSFromYAMLTest, ReturnsExternalPathVFSHit) {
-  IntrusiveRefCntPtr<vfs::InMemoryFileSystem> BaseFS(new vfs::InMemoryFileSystem);
-  BaseFS->addFile("//root/foo/realname", 0, MemoryBuffer::getMemBuffer("contents of a"));
-  auto FS = getFromYAMLString(
-      "{ 'use-external-names': true,\n"
-      "  'roots': [\n"
-      "{\n"
-      "  'type': 'directory',\n"
-      "  'name': '//root/foo',\n"
-      "  'contents': [ {\n"
-      "                  'type': 'file',\n"
-      "                  'name': 'vfsname',\n"
-      "                  'external-contents': 'realname'\n"
-      "                }\n"
-      "              ]\n"
-      "}]}",
-      BaseFS);
+  IntrusiveRefCntPtr<vfs::InMemoryFileSystem> BaseFS(
+      new vfs::InMemoryFileSystem);
+  BaseFS->addFile("//root/foo/realname", 0,
+                  MemoryBuffer::getMemBuffer("contents of a"));
+  auto FS =
+      getFromYAMLString("{ 'use-external-names': true,\n"
+                        "  'roots': [\n"
+                        "{\n"
+                        "  'type': 'directory',\n"
+                        "  'name': '//root/foo',\n"
+                        "  'contents': [ {\n"
+                        "                  'type': 'file',\n"
+                        "                  'name': 'vfsname',\n"
+                        "                  'external-contents': 'realname'\n"
+                        "                }\n"
+                        "              ]\n"
+                        "}]}",
+                        BaseFS);
   ASSERT_FALSE(FS->setCurrentWorkingDirectory("//root/foo"));
 
   auto OpenedF = FS->openFileForRead("vfsname");
@@ -1692,22 +1696,24 @@ TEST_F(VFSFromYAMLTest, ReturnsExternalPathVFSHit) {
 }
 
 TEST_F(VFSFromYAMLTest, ReturnsInternalPathVFSHit) {
-  IntrusiveRefCntPtr<vfs::InMemoryFileSystem> BaseFS(new vfs::InMemoryFileSystem);
-  BaseFS->addFile("//root/foo/realname", 0, MemoryBuffer::getMemBuffer("contents of a"));
-  auto FS = getFromYAMLString(
-      "{ 'use-external-names': false,\n"
-      "  'roots': [\n"
-      "{\n"
-      "  'type': 'directory',\n"
-      "  'name': '//root/foo',\n"
-      "  'contents': [ {\n"
-      "                  'type': 'file',\n"
-      "                  'name': 'vfsname',\n"
-      "                  'external-contents': 'realname'\n"
-      "                }\n"
-      "              ]\n"
-      "}]}",
-      BaseFS);
+  IntrusiveRefCntPtr<vfs::InMemoryFileSystem> BaseFS(
+      new vfs::InMemoryFileSystem);
+  BaseFS->addFile("//root/foo/realname", 0,
+                  MemoryBuffer::getMemBuffer("contents of a"));
+  auto FS =
+      getFromYAMLString("{ 'use-external-names': false,\n"
+                        "  'roots': [\n"
+                        "{\n"
+                        "  'type': 'directory',\n"
+                        "  'name': '//root/foo',\n"
+                        "  'contents': [ {\n"
+                        "                  'type': 'file',\n"
+                        "                  'name': 'vfsname',\n"
+                        "                  'external-contents': 'realname'\n"
+                        "                }\n"
+                        "              ]\n"
+                        "}]}",
+                        BaseFS);
   ASSERT_FALSE(FS->setCurrentWorkingDirectory("//root/foo"));
 
   auto OpenedF = FS->openFileForRead("vfsname");
@@ -1728,7 +1734,6 @@ TEST_F(VFSFromYAMLTest, ReturnsInternalPathVFSHit) {
 
   EXPECT_EQ(0, NumDiagnostics);
 }
-
 
 TEST_F(VFSFromYAMLTest, CaseInsensitive) {
   IntrusiveRefCntPtr<DummyFileSystem> Lower(new DummyFileSystem());

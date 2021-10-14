@@ -647,9 +647,7 @@ public:
 
   std::error_code close() override { return {}; }
 
-  void setPath(const Twine &Path) override {
-    RequestedName = Path.str();
-  }
+  void setPath(const Twine &Path) override { RequestedName = Path.str(); }
 };
 } // namespace
 
@@ -1973,7 +1971,7 @@ RedirectingFileSystem::lookupPathImpl(
   return make_error_code(llvm::errc::no_such_file_or_directory);
 }
 
-static Status getRedirectedFileStatus( const Twine &OriginalPath,
+static Status getRedirectedFileStatus(const Twine &OriginalPath,
                                       bool UseExternalNames,
                                       Status ExternalStatus) {
   Status S = ExternalStatus;
@@ -1983,17 +1981,16 @@ static Status getRedirectedFileStatus( const Twine &OriginalPath,
   return S;
 }
 
-ErrorOr<Status>
-RedirectingFileSystem::status(const Twine &CanonicalPath,
-                              const Twine &OriginalPath,
-                              const RedirectingFileSystem::LookupResult &Result) {
+ErrorOr<Status> RedirectingFileSystem::status(
+    const Twine &CanonicalPath, const Twine &OriginalPath,
+    const RedirectingFileSystem::LookupResult &Result) {
   if (Optional<StringRef> ExtRedirect = Result.getExternalRedirect()) {
     ErrorOr<Status> S = ExternalFS->status(*ExtRedirect);
     if (!S)
       return S;
     auto *RE = cast<RedirectingFileSystem::RemapEntry>(Result.E);
-    return getRedirectedFileStatus( OriginalPath, RE->useExternalName(UseExternalNames),
-                                   *S);
+    return getRedirectedFileStatus(OriginalPath,
+                                   RE->useExternalName(UseExternalNames), *S);
   }
 
   auto *DE = cast<RedirectingFileSystem::DirectoryEntry>(Result.E);
@@ -2052,14 +2049,13 @@ public:
 
   std::error_code close() override { return InnerFile->close(); }
 
-  void setPath(const Twine &Path) override {
-    S = S.copyWithNewName(S, Path);
-  }
+  void setPath(const Twine &Path) override { S = S.copyWithNewName(S, Path); }
 };
 
 } // namespace
 
-ErrorOr<std::unique_ptr<File>> File::getWithPath(ErrorOr<std::unique_ptr<File>> Result, const Twine &P) {
+ErrorOr<std::unique_ptr<File>>
+File::getWithPath(ErrorOr<std::unique_ptr<File>> Result, const Twine &P) {
   if (!Result)
     return Result;
 
@@ -2082,7 +2078,8 @@ RedirectingFileSystem::openFileForRead(const Twine &OriginalPath) {
       lookupPath(CanonicalPath);
   if (!Result) {
     if (shouldFallBackToExternalFS(Result.getError()))
-      return File::getWithPath(ExternalFS->openFileForRead(CanonicalPath), OriginalPath);
+      return File::getWithPath(ExternalFS->openFileForRead(CanonicalPath),
+                               OriginalPath);
 
     return Result.getError();
   }
@@ -2096,7 +2093,8 @@ RedirectingFileSystem::openFileForRead(const Twine &OriginalPath) {
   auto ExternalFile = ExternalFS->openFileForRead(ExtRedirect);
   if (!ExternalFile) {
     if (shouldFallBackToExternalFS(ExternalFile.getError(), Result->E))
-      return File::getWithPath(ExternalFS->openFileForRead(CanonicalPath), OriginalPath);
+      return File::getWithPath(ExternalFS->openFileForRead(CanonicalPath),
+                               OriginalPath);
     return ExternalFile;
   }
 
@@ -2106,7 +2104,7 @@ RedirectingFileSystem::openFileForRead(const Twine &OriginalPath) {
 
   // FIXME: Update the status with the name and VFSMapped.
   Status S = getRedirectedFileStatus(
-       OriginalPath, RE->useExternalName(UseExternalNames), *ExternalStatus);
+      OriginalPath, RE->useExternalName(UseExternalNames), *ExternalStatus);
   return std::unique_ptr<File>(
       std::make_unique<FileWithFixedStatus>(std::move(*ExternalFile), S));
 }

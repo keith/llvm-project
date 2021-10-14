@@ -122,15 +122,13 @@ public:
   /// Closes the file.
   virtual std::error_code close() = 0;
 
-  // Get the same file wrapped with a different path.
-  static ErrorOr<std::unique_ptr<File>> getWithPath(ErrorOr<std::unique_ptr<File>> Result,
-      const Twine &P);
+  // Get the same file with a different path.
+  static ErrorOr<std::unique_ptr<File>>
+  getWithPath(ErrorOr<std::unique_ptr<File>> Result, const Twine &P);
+
 protected:
   // Set the file's underlying path.
   virtual void setPath(const Twine &Path) {}
-
-  // static std::unique_ptr<File> getWithPath(std::unique_ptr<File> F,
-  //                                          const Twine &P);
 };
 
 /// A member of a directory, yielded by a directory_iterator.
@@ -829,7 +827,8 @@ private:
                                        Entry *From) const;
 
   /// Get the status for a path with the provided \c LookupResult.
-  ErrorOr<Status> status(const Twine &CanonicalPath, const Twine &OriginalPath, const LookupResult &Result);
+  ErrorOr<Status> status(const Twine &CanonicalPath, const Twine &OriginalPath,
+                         const LookupResult &Result);
 
 public:
   /// Looks up \p Path in \c Roots and returns a LookupResult giving the
