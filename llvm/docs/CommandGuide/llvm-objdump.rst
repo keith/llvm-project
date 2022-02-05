@@ -337,9 +337,9 @@ MACH-O ONLY OPTIONS AND COMMANDS
 
   Display exported symbols.
 
-.. option:: --function-starts
+.. option:: --function-starts=<option>
 
-  Print the function starts table for Mach-O objects.
+  Print the function starts table for Mach-O objects. Either ``addrs`` (default), ``names``, or ``both``.
 
 .. option:: -g
 

@@ -78,7 +78,7 @@ bool objdump::UniversalHeaders;
 static bool ArchiveMemberOffsets;
 bool objdump::IndirectSymbols;
 bool objdump::DataInCode;
-bool objdump::FunctionStarts;
+FunctionStartsMode objdump::FunctionStartsType = FSNone;
 bool objdump::LinkOptHints;
 bool objdump::InfoPlist;
 bool objdump::ChainedFixups;
@@ -112,7 +112,15 @@ void objdump::parseMachOOptions(const llvm::opt::InputArgList &InputArgs) {
   ArchiveMemberOffsets = InputArgs.hasArg(OBJDUMP_archive_member_offsets);
   IndirectSymbols = InputArgs.hasArg(OBJDUMP_indirect_symbols);
   DataInCode = InputArgs.hasArg(OBJDUMP_data_in_code);
-  FunctionStarts = InputArgs.hasArg(OBJDUMP_function_starts);
+  if (const opt::Arg *A = InputArgs.getLastArg(OBJDUMP_function_starts_EQ)) {
+    FunctionStartsType = StringSwitch<FunctionStartsMode>(A->getValue())
+                             .Case("addrs", FSAddrs)
+                             .Case("names", FSNames)
+                             .Case("both", FSBoth)
+                             .Default(FSNone);
+    if (FunctionStartsType == FSNone)
+      invalidArgValue(A);
+  }
   LinkOptHints = InputArgs.hasArg(OBJDUMP_link_opt_hints);
   InfoPlist = InputArgs.hasArg(OBJDUMP_info_plist);
   ChainedFixups = InputArgs.hasArg(OBJDUMP_chained_fixups);
@@ -1080,12 +1088,34 @@ static void PrintFunctionStarts(MachOObjectFile *O) {
     }
   }
 
+  DenseMap<uint64_t, StringRef> SymbolNames;
+  if (FunctionStartsType == FSNames || FunctionStartsType == FSBoth) {
+    for (SymbolRef Sym : O->symbols()) {
+      if (Expected<uint64_t> Addr = Sym.getAddress()) {
+        if (Expected<StringRef> Name = Sym.getName()) {
+          SymbolNames[*Addr] = *Name;
+        }
+      }
+    }
+  }
+
   for (uint64_t S : FunctionStarts) {
     uint64_t Addr = BaseSegmentAddress + S;
-    if (O->is64Bit())
-      outs() << format("%016" PRIx64, Addr) << "\n";
-    else
-      outs() << format("%08" PRIx32, static_cast<uint32_t>(Addr)) << "\n";
+    if (FunctionStartsType == FSNames) {
+      auto It = SymbolNames.find(Addr);
+      if (It != SymbolNames.end())
+        outs() << It->second << "\n";
+    } else {
+      if (O->is64Bit())
+        outs() << format("%016" PRIx64, Addr);
+      else
+        outs() << format("%08" PRIx32, static_cast<uint32_t>(Addr));
+
+      if (FunctionStartsType == FSBoth) {
+        outs() << " " << SymbolNames.lookup(Addr);
+      }
+      outs() << "\n";
+    }
   }
 }
 
@@ -2111,7 +2141,7 @@ static void ProcessMachO(StringRef Name, MachOObjectFile *MachOOF,
   // UniversalHeaders or ArchiveHeaders.
   if (Disassemble || Relocations || PrivateHeaders || ExportsTrie || Rebase ||
       Bind || SymbolTable || LazyBind || WeakBind || IndirectSymbols ||
-      DataInCode || FunctionStarts || LinkOptHints || ChainedFixups ||
+      DataInCode || FunctionStartsType != FSNone  || LinkOptHints || ChainedFixups ||
       DyldInfo || DylibsUsed || DylibId || Rpaths || ObjcMetaData ||
       (!FilterSections.empty())) {
     if (LeadingHeaders) {
@@ -2168,7 +2198,7 @@ static void ProcessMachO(StringRef Name, MachOObjectFile *MachOOF,
     PrintIndirectSymbols(MachOOF, Verbose);
   if (DataInCode)
     PrintDataInCodeTable(MachOOF, Verbose);
-  if (FunctionStarts)
+  if (FunctionStartsType != FSNone)
     PrintFunctionStarts(MachOOF);
   if (LinkOptHints)
     PrintLinkOptHints(MachOOF);

@@ -2845,7 +2845,7 @@ static void parseIntArg(const llvm::opt::InputArgList &InputArgs, int ID,
   }
 }
 
-static void invalidArgValue(const opt::Arg *A) {
+void objdump::invalidArgValue(const opt::Arg *A) {
   reportCmdLineError("'" + StringRef(A->getValue()) +
                      "' is not a valid value for '" + A->getSpelling() + "'");
 }
@@ -3106,7 +3106,7 @@ int main(int argc, char **argv) {
       !DynamicSymbolTable && !UnwindInfo && !FaultMapSection && !Offloading &&
       !(MachOOpt &&
         (Bind || DataInCode || ChainedFixups || DyldInfo || DylibId ||
-         DylibsUsed || ExportsTrie || FirstPrivateHeader || FunctionStarts ||
+         DylibsUsed || ExportsTrie || FirstPrivateHeader || FunctionStartsType != FSNone ||
          IndirectSymbols || InfoPlist || LazyBind || LinkOptHints ||
          ObjcMetaData || Rebase || Rpaths || UniversalHeaders || WeakBind ||
          !FilterSections.empty()))) {

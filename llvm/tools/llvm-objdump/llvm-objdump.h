@@ -13,6 +13,7 @@
 #include "llvm/DebugInfo/DIContext.h"
 #include "llvm/MC/MCDisassembler/MCDisassembler.h"
 #include "llvm/Object/Archive.h"
+#include "llvm/Option/Arg.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/DataTypes.h"
 
@@ -145,6 +146,8 @@ T unwrapOrError(Expected<T> EO, Ts &&... Args) {
     return std::move(*EO);
   reportError(EO.takeError(), std::forward<Ts>(Args)...);
 }
+
+void invalidArgValue(const llvm::opt::Arg *A);
 
 std::string getFileNameForError(const object::Archive::Child &C,
                                 unsigned Index);
