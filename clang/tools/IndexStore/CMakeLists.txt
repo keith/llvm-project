@@ -71,6 +71,14 @@ endif()
 
 set(INDEXSTORE_HEADERS_INSTALL_DESTINATION "local/include")
 
+target_compile_options(IndexStore PRIVATE
+  "SHELL:-Xclang --linker-option=-lc"
+  "SHELL:-Xclang --linker-option=-lc++"
+  "SHELL:-Xclang --linker-option=-lncurses"
+  "SHELL:-Xclang --linker-option=-lz"
+)
+target_link_options(IndexStore PRIVATE -Wl,-x -Wl,-r --ld-path=${CMAKE_CURRENT_SOURCE_DIR}/linker.sh)
+
 install(DIRECTORY ../../include/indexstore
   COMPONENT IndexStore
   DESTINATION "${INDEXSTORE_HEADERS_INSTALL_DESTINATION}"
