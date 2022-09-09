@@ -24,8 +24,12 @@
 #include "llvm/Support/Chrono.h"
 #include "llvm/Support/ManagedStatic.h"
 
+asm(".linker_option \"-framework\", \"CoreServices\"");
+
 #if INDEXSTORE_HAS_BLOCKS
 #include <Block.h>
+#else
+#error "Missing blocks"
 #endif
 
 using namespace clang;
