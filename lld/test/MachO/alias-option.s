@@ -21,7 +21,7 @@
 # MAIN: [[#%x,FOO_ADDR:]] T _foo
 # MAIN: [[#FOO_ADDR]]     T _main
 
-# RUN: %lld -alias _foo _bar -alias _main _fake_main %t/main.o %t/foo.o -o %t/multiple.o
+# RUN: %lld -dead_strip -alias _foo _bar -alias _main _fake_main %t/main.o %t/foo.o -o %t/multiple.o
 # RUN: llvm-nm %t/multiple.o | FileCheck %s --check-prefix=MULTIPLE
 
 # MULTIPLE: [[#%x,FOO_ADDR:]]  T _bar
